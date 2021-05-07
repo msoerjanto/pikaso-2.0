@@ -12,6 +12,7 @@ import (
 	"github.com/msoerjanto/thepikaso/data"
 	"github.com/msoerjanto/thepikaso/exhibition"
 	"github.com/msoerjanto/thepikaso/piece"
+	"github.com/msoerjanto/thepikaso/space"
 )
 
 const (
@@ -35,11 +36,13 @@ func main() {
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 
 	var (
-		pieces = piece.NewPieceRepository()
+		pieces  = piece.NewPieceRepository()
+		artists = piece.NewArtistRepository()
+		spaces  = space.NewSpaceRepository()
 	)
 
 	var es exhibition.ExhibitionService
-	es = exhibition.NewService(pieces)
+	es = exhibition.NewService(pieces, artists, spaces)
 
 	httpLogger := log.With(logger, "component", "http")
 
