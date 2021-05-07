@@ -10,64 +10,50 @@ import (
 
 	"fmt"
 	"log"
-	"strconv"
 )
 
-type Piece struct {
-	PieceId  string // ArtistId+PictureNumber
-	Year     int
-	Title    string
-	Media    string
-	Length   int
-	Height   int
-	Page     int
-	ImageUrl string
+type Artist struct {
+	ArtistId  string
+	FirstName string
+	LastName  string
 }
 
-type Repository interface {
-	Store(piece *Piece) error
-	FindAll() ([]*Piece, error)
+type ArtistRepository interface {
+	Store(*Artist) error
+	FindAll() ([]*Artist, error)
 }
 
-type pieceRepository struct {
+type artistRepository struct {
 }
 
-func NewPieceRepository() Repository {
-	return &pieceRepository{}
+func NewArtistRepository() ArtistRepository {
+	return &artistRepository{}
 }
 
-func (r *pieceRepository) Store(piece *Piece) error {
-	// snippet-start:[dynamodb.go.create_item.session]
-	// Initialize a session that the SDK will use to load
-	// credentials from the shared credentials file ~/.aws/credentials
-	// and region from the shared configuration file ~/.aws/config.
+func (r *artistRepository) Store(artist *Artist) error {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region:   aws.String("ap-southeast-1"),
 		Endpoint: aws.String("http://localhost:8000")}))
 
 	// Create DynamoDB client
 	svc := dynamodb.New(sess)
-	// snippet-end:[dynamodb.go.create_item.session]
 
-	av, err := dynamodbattribute.MarshalMap(piece)
+	av, err := dynamodbattribute.MarshalMap(artist)
 	if err != nil {
+		log.Fatalf("Got error marshalling new piece item: %s", err)
 		return err
 	}
 	// snippet-end:[dynamodb.go.create_item.assign_struct]
 
 	// snippet-start:[dynamodb.go.create_item.call]
-	// Create item in table Movies
-	tableName := "Pieces"
+	tableName := "Artists"
 
 	// first check if the item exists
 	exists, err := svc.GetItem(&dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]*dynamodb.AttributeValue{
-			"PieceId": {
-				S: aws.String(piece.PieceId),
-			},
-			"Year": {
-				N: aws.String(strconv.Itoa(piece.Year)),
+			"ArtistId": {
+				S: aws.String(artist.ArtistId),
 			},
 		},
 	})
@@ -76,7 +62,7 @@ func (r *pieceRepository) Store(piece *Piece) error {
 		return errors.New("Got error calling GetItem")
 	}
 	if exists != nil && exists.Item != nil {
-		return errors.New("Piece exists with PieceId " + piece.PieceId)
+		return errors.New("Artst exists with ArtistId " + artist.ArtistId)
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -90,14 +76,12 @@ func (r *pieceRepository) Store(piece *Piece) error {
 		return err
 	}
 
-	year := strconv.Itoa(piece.Year)
-
-	fmt.Println("Successfully added '" + piece.Title + "' (" + year + ") to table " + tableName)
+	fmt.Println("Successfully added '" + artist.ArtistId + " to table " + tableName)
 	// snippet-end:[dynamodb.go.create_item.call]
 	return nil
 }
 
-func (r *pieceRepository) FindAll() ([]*Piece, error) {
+func (r *artistRepository) FindAll() ([]*Artist, error) {
 	// snippet-start:[dynamodb.go.load_items.session]
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
@@ -110,7 +94,7 @@ func (r *pieceRepository) FindAll() ([]*Piece, error) {
 	svc := dynamodb.New(sess)
 	// snippet-end:[dynamodb.go.load_items.session]
 
-	tableName := "Pieces"
+	tableName := "Artists"
 	// snippet-end:[dynamodb.go.scan_items.vars]
 
 	params := &dynamodb.ScanInput{
@@ -121,22 +105,22 @@ func (r *pieceRepository) FindAll() ([]*Piece, error) {
 	result, err := svc.Scan(params)
 	if err != nil {
 		log.Fatalf("Query API call failed: %s", err)
-		return make([]*Piece, 0), err
+		return make([]*Artist, 0), err
 	}
 	// snippet-end:[dynamodb.go.scan_items.call]
 
 	// snippet-start:[dynamodb.go.scan_items.process]
-	var pieces []*Piece
+	var artists []*Artist
 	for _, i := range result.Items {
-		piece := Piece{}
+		artist := Artist{}
 
-		err = dynamodbattribute.UnmarshalMap(i, &piece)
+		err = dynamodbattribute.UnmarshalMap(i, &artist)
 
 		if err != nil {
 			log.Fatalf("Got error unmarshalling: %s", err)
-			return pieces, err
+			return artists, err
 		}
-		pieces = append(pieces, &piece)
+		artists = append(artists, &artist)
 	}
-	return pieces, nil
+	return artists, nil
 }

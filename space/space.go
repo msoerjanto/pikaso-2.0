@@ -1,42 +1,37 @@
-package piece
+package space
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 
-	"fmt"
 	"log"
-	"strconv"
 )
 
-type Piece struct {
-	PieceId  string // ArtistId+PictureNumber
-	Year     int
-	Title    string
-	Media    string
-	Length   int
-	Height   int
-	Page     int
-	ImageUrl string
+type Space struct {
+	Location    string
+	SpaceNumber int
+	PieceId     string // ArtistId + PictureNumber
 }
 
-type Repository interface {
-	Store(piece *Piece) error
-	FindAll() ([]*Piece, error)
+type SpaceRepository interface {
+	Store(space *Space) error
+	FindAll() ([]*Space, error)
 }
 
-type pieceRepository struct {
+type spaceRepository struct {
 }
 
-func NewPieceRepository() Repository {
-	return &pieceRepository{}
+func NewSpaceRepository() SpaceRepository {
+	return &spaceRepository{}
 }
 
-func (r *pieceRepository) Store(piece *Piece) error {
+func (s *spaceRepository) Store(space *Space) error {
 	// snippet-start:[dynamodb.go.create_item.session]
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
@@ -49,7 +44,7 @@ func (r *pieceRepository) Store(piece *Piece) error {
 	svc := dynamodb.New(sess)
 	// snippet-end:[dynamodb.go.create_item.session]
 
-	av, err := dynamodbattribute.MarshalMap(piece)
+	av, err := dynamodbattribute.MarshalMap(space)
 	if err != nil {
 		return err
 	}
@@ -57,17 +52,17 @@ func (r *pieceRepository) Store(piece *Piece) error {
 
 	// snippet-start:[dynamodb.go.create_item.call]
 	// Create item in table Movies
-	tableName := "Pieces"
+	tableName := "Spaces"
 
 	// first check if the item exists
 	exists, err := svc.GetItem(&dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]*dynamodb.AttributeValue{
-			"PieceId": {
-				S: aws.String(piece.PieceId),
+			"Location": {
+				S: aws.String(space.Location),
 			},
-			"Year": {
-				N: aws.String(strconv.Itoa(piece.Year)),
+			"SpaceNumber": {
+				N: aws.String(strconv.Itoa(space.SpaceNumber)),
 			},
 		},
 	})
@@ -76,7 +71,7 @@ func (r *pieceRepository) Store(piece *Piece) error {
 		return errors.New("Got error calling GetItem")
 	}
 	if exists != nil && exists.Item != nil {
-		return errors.New("Piece exists with PieceId " + piece.PieceId)
+		return errors.New("Space already exists")
 	}
 
 	input := &dynamodb.PutItemInput{
@@ -86,22 +81,15 @@ func (r *pieceRepository) Store(piece *Piece) error {
 
 	_, err = svc.PutItem(input)
 	if err != nil {
-		log.Fatalf("Got error calling PutItem: %s", err)
 		return err
 	}
 
-	year := strconv.Itoa(piece.Year)
-
-	fmt.Println("Successfully added '" + piece.Title + "' (" + year + ") to table " + tableName)
-	// snippet-end:[dynamodb.go.create_item.call]
+	fmt.Printf("Successfully added '%s %d' to table %s \n", space.Location, space.SpaceNumber, tableName)
 	return nil
+	// snippet-end:[dynamodb.go.create_item.call]
 }
 
-func (r *pieceRepository) FindAll() ([]*Piece, error) {
-	// snippet-start:[dynamodb.go.load_items.session]
-	// Initialize a session that the SDK will use to load
-	// credentials from the shared credentials file ~/.aws/credentials
-	// and region from the shared configuration file ~/.aws/config.
+func (s *spaceRepository) FindAll() ([]*Space, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region:   aws.String("ap-southeast-1"),
 		Endpoint: aws.String("http://localhost:8000")}))
@@ -110,7 +98,7 @@ func (r *pieceRepository) FindAll() ([]*Piece, error) {
 	svc := dynamodb.New(sess)
 	// snippet-end:[dynamodb.go.load_items.session]
 
-	tableName := "Pieces"
+	tableName := "Spaces"
 	// snippet-end:[dynamodb.go.scan_items.vars]
 
 	params := &dynamodb.ScanInput{
@@ -121,22 +109,22 @@ func (r *pieceRepository) FindAll() ([]*Piece, error) {
 	result, err := svc.Scan(params)
 	if err != nil {
 		log.Fatalf("Query API call failed: %s", err)
-		return make([]*Piece, 0), err
+		return make([]*Space, 0), err
 	}
 	// snippet-end:[dynamodb.go.scan_items.call]
 
 	// snippet-start:[dynamodb.go.scan_items.process]
-	var pieces []*Piece
+	var spaces []*Space
 	for _, i := range result.Items {
-		piece := Piece{}
+		space := Space{}
 
-		err = dynamodbattribute.UnmarshalMap(i, &piece)
+		err = dynamodbattribute.UnmarshalMap(i, &space)
 
 		if err != nil {
 			log.Fatalf("Got error unmarshalling: %s", err)
-			return pieces, err
+			return spaces, err
 		}
-		pieces = append(pieces, &piece)
+		spaces = append(spaces, &space)
 	}
-	return pieces, nil
+	return spaces, nil
 }
